@@ -87,7 +87,7 @@ export function Today({ date, setDate, name, openMore }: { date: string; setDate
       <button className="hero" onClick={() => quick([30], 'E-meter')}>
         <span className="hero-text">
           <span className="hero-title">E-meter gewisseld</span>
-          <span className="hero-sub">Eén tik na elke wissel · {money(32.3)}</span>
+          <span className="hero-sub">{money(32.3)}</span>
         </span>
         <span className="hero-plus">
           <Icon name="plus" size={34} stroke={2.4} />
