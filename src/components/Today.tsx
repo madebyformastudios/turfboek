@@ -1,18 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ACTIVITIES, Activity, activity, money, num } from '../lib/rates'
-import { addDays, fmtLong, periodFor, today } from '../lib/period'
+import { daysOf, fmtLong, parse, periodFor, shiftPeriod, today } from '../lib/period'
 import { Entry, addEntry, amountOf, removeEntry, updateEntry, useStore } from '../lib/store'
 import { Sheet } from './Sheet'
+import { Icon } from './Icon'
 
 const buzz = () => navigator.vibrate?.(15)
 
 type Toast = { ids: string[]; label: string }
-type Ask = { a: Activity; editId?: string }
 
-export function Today({ date, setDate }: { date: string; setDate: (d: string) => void }) {
+const greeting = () => {
+  const h = new Date().getHours()
+  return h < 6 ? 'Goedenacht' : h < 12 ? 'Goedemorgen' : h < 18 ? 'Goedemiddag' : 'Goedenavond'
+}
+
+export function Today({ date, setDate, name, openMore }: { date: string; setDate: (d: string) => void; name: string; openMore: () => void }) {
   const { entries } = useStore()
   const [toast, setToast] = useState<Toast | null>(null)
-  const [ask, setAsk] = useState<Ask | null>(null)
+  const [ask, setAsk] = useState<Activity | null>(null)
   const [edit, setEdit] = useState<Entry | null>(null)
   const timer = useRef<number>()
 
@@ -20,7 +25,6 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
   const total = day.reduce((s, e) => s + amountOf(e), 0)
   const count = (codes: number[]) => day.filter((e) => codes.includes(e.activity_code)).reduce((s, e) => s + e.quantity, 0)
   const isToday = date === today()
-  const p = periodFor(date)
 
   const showToast = (t: Toast) => {
     setToast(t)
@@ -36,7 +40,7 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
   }
 
   const tap = (a: Activity) => {
-    if (a.reasons || a.unit !== 'stuks') return setAsk({ a })
+    if (a.reasons || a.unit !== 'stuks') return setAsk(a)
     quick([a.code], a.short)
   }
 
@@ -47,64 +51,79 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
 
   return (
     <>
-      <header className="day-head">
-        <button className="icon-btn" onClick={() => setDate(addDays(date, -1))} aria-label="Vorige dag">‹</button>
-        <button className="day-title" onClick={() => setDate(today())}>
-          <span className="eyebrow">{isToday ? 'Vandaag' : 'Terug naar vandaag'} · wk {p.week}</span>
-          <span className="day-name">{fmtLong(date)}</span>
+      <header className="hello">
+        <div>
+          <h1>
+            {greeting()}
+            {name && `, ${name}`}
+          </h1>
+          <p className="hello-date">{fmtLong(today())}</p>
+        </div>
+        <button className="avatar" onClick={openMore} aria-label="Profiel">
+          {name ? name[0].toUpperCase() : <Icon name="user" size={22} />}
         </button>
-        <button className="icon-btn" onClick={() => setDate(addDays(date, 1))} aria-label="Volgende dag" disabled={isToday}>›</button>
       </header>
 
-      <section className="day-total">
-        <div className="big-money">{money(total)}</div>
-        <div className="day-stats">
-          <span><b>{num(count([10, 30]))}</b> E</span>
-          <span><b>{num(count([20, 40]))}</b> G</span>
-          <span><b>{num(count([0]))}</b> niet thuis</span>
-          <span><b>{num(count([50, 60, 70]))}</b> TNU/NU</span>
+      <WeekStrip date={date} setDate={setDate} entries={entries} />
+
+      <section className="summary">
+        <div>
+          <span className="eyebrow">{isToday ? 'Vandaag verdiend' : `Verdiend op ${fmtLong(date)}`}</span>
+          <div className="big-money">{money(total)}</div>
+        </div>
+        <div className="summary-chips">
+          <span className="chip-stat tone-elec">
+            <b>{num(count([10, 30]))}</b> E
+          </span>
+          <span className="chip-stat tone-gas">
+            <b>{num(count([20, 40]))}</b> G
+          </span>
+          <span className="chip-stat tone-fail">
+            <b>{num(count([0, 50, 60, 70]))}</b> niet
+          </span>
         </div>
       </section>
 
-      <button className="btn-elec" onClick={() => quick([30], 'E-meter')}>
-        <span className="btn-elec-label">
-          <span className="plus">+</span> E-meter
+      <button className="hero" onClick={() => quick([30], 'E-meter')}>
+        <span className="hero-text">
+          <span className="hero-title">E-meter gewisseld</span>
+          <span className="hero-sub">Eén tik na elke wissel · {money(32.3)}</span>
         </span>
-        <span className="btn-elec-price">{money(32.3)}</span>
+        <span className="hero-plus">
+          <Icon name="plus" size={34} stroke={2.4} />
+        </span>
+        <span className="hero-bolt" aria-hidden>
+          <Icon name="bolt" size={120} stroke={1.2} />
+        </span>
       </button>
 
-      <div className="row-2">
-        <button className="btn-tile tone-gas" onClick={() => quick([10, 20], 'Combi E + G')}>
-          <span className="tile-name">Combi E + G</span>
-          <span className="tile-price">{money(32.3 + 10.098)}</span>
-        </button>
-        <button className="btn-tile tone-gas" onClick={() => tap(activity(40))}>
-          <span className="tile-name">Solo gas</span>
-          <span className="tile-price">{money(27.46)}</span>
-        </button>
+      <div className="grid-2">
+        <Tile a={{ ...activity(10), icon: 'combi', short: 'Combi E+G', price: 32.3 + 10.098 }} onClick={() => quick([10, 20], 'Combi E + G')} />
+        <Tile a={activity(40)} onClick={() => tap(activity(40))} />
       </div>
 
-      <h3 className="group-title">Niet gelukt</h3>
-      <div className="row-2">
+      <h3 className="section-title">Niet gelukt</h3>
+      <div className="grid-2">
         {[0, 50, 60, 70].map((c) => (
           <Tile key={c} a={activity(c)} onClick={() => tap(activity(c))} />
         ))}
       </div>
 
-      <h3 className="group-title">Regie &amp; kosten</h3>
-      <div className="row-3">
+      <h3 className="section-title">Regie &amp; kosten</h3>
+      <div className="grid-3">
         {[80, 90, 100].map((c) => (
-          <Tile key={c} a={activity(c)} onClick={() => tap(activity(c))} />
+          <Tile key={c} a={activity(c)} onClick={() => tap(activity(c))} compact />
         ))}
       </div>
 
-      <h3 className="group-title">
-        Geturfd {day.length > 0 && <span className="muted">· {day.length}</span>}
-      </h3>
+      <div className="section-row">
+        <h3 className="section-title">Geturfd</h3>
+        {day.length > 0 && <span className="muted">{day.length} regels</span>}
+      </div>
       {day.length === 0 ? (
         <p className="empty">Nog niks geturfd {isToday ? 'vandaag' : 'op deze dag'}. Tik op E-meter na elke wissel.</p>
       ) : (
-        <ul className="entry-list">
+        <ul className="timeline">
           {day.map((e) => (
             <EntryRow key={e.id} e={e} onClick={() => setEdit(e)} />
           ))}
@@ -113,7 +132,10 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
 
       {toast && (
         <div className="toast" role="status">
-          <span>
+          <span className="toast-check">
+            <Icon name="check" size={16} stroke={3} />
+          </span>
+          <span className="toast-text">
             <b>{toast.label}</b> geturfd
           </span>
           <button
@@ -131,13 +153,13 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
 
       {ask && (
         <AskSheet
-          a={ask.a}
+          a={ask}
           onClose={() => setAsk(null)}
           onSubmit={(v) => {
             buzz()
-            const e = addEntry({ work_date: date, activity_code: ask.a.code, ...v })
+            const e = addEntry({ work_date: date, activity_code: ask.code, ...v })
             setAsk(null)
-            showToast({ ids: [e.id], label: ask.a.short })
+            showToast({ ids: [e.id], label: ask.short })
           }}
         />
       )}
@@ -147,13 +169,60 @@ export function Today({ date, setDate }: { date: string; setDate: (d: string) =>
   )
 }
 
-function Tile({ a, onClick }: { a: Activity; onClick: () => void }) {
+function WeekStrip({ date, setDate, entries }: { date: string; setDate: (d: string) => void; entries: Entry[] }) {
+  const p = periodFor(date)
+  const now = today()
+  const worked = new Set(entries.map((e) => e.work_date))
+  const isCurrent = p.end === periodFor(now).end
   return (
-    <button className={`btn-tile tone-${a.tone}`} onClick={onClick}>
-      <span className="tile-name">{a.short}</span>
-      <span className="tile-price">
-        {a.unit === 'bedrag' ? 'bedrag' : money(a.price)}
-        {a.unit === 'uur' && <small> /uur</small>}
+    <section className="strip">
+      <div className="strip-head">
+        <button className="round-btn" onClick={() => setDate(shiftPeriod(p, -1).end)} aria-label="Vorige factuurweek">
+          <Icon name="left" size={18} />
+        </button>
+        <button className="strip-label" onClick={() => setDate(now)}>
+          Factuurweek {p.week}
+          {!isCurrent && <span className="strip-back">naar vandaag</span>}
+        </button>
+        <button className="round-btn" onClick={() => setDate(shiftPeriod(p, 1).start)} aria-label="Volgende factuurweek" disabled={isCurrent}>
+          <Icon name="right" size={18} />
+        </button>
+      </div>
+      <div className="strip-days">
+        {daysOf(p).map((d) => {
+          const future = d > now
+          return (
+            <button
+              key={d}
+              className={`strip-day ${d === date ? 'is-on' : ''} ${d === now ? 'is-today' : ''}`}
+              onClick={() => setDate(d)}
+              disabled={future}
+              aria-label={fmtLong(d)}
+              aria-pressed={d === date}
+            >
+              <span className="strip-dow">{new Intl.DateTimeFormat('nl-NL', { weekday: 'short' }).format(parse(d)).replace('.', '')}</span>
+              <span className="strip-num">{parse(d).getDate()}</span>
+              <span className={`strip-dot ${worked.has(d) ? 'is-on' : ''}`} />
+            </button>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+function Tile({ a, onClick, compact }: { a: Activity; onClick: () => void; compact?: boolean }) {
+  return (
+    <button className={`tile tone-${a.tone} ${compact ? 'is-compact' : ''}`} onClick={onClick}>
+      <span className="icon-sq">
+        <Icon name={a.icon} size={compact ? 20 : 22} />
+      </span>
+      <span className="tile-text">
+        <span className="tile-name">{a.short}</span>
+        <span className="tile-price">
+          {a.unit === 'bedrag' ? 'eigen bedrag' : money(a.price)}
+          {a.unit === 'uur' && ' /uur'}
+        </span>
       </span>
     </button>
   )
@@ -162,20 +231,20 @@ function Tile({ a, onClick }: { a: Activity; onClick: () => void }) {
 function EntryRow({ e, onClick }: { e: Entry; onClick: () => void }) {
   const a = activity(e.activity_code)
   const time = new Date(e.created_at).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })
+  const paid = amountOf(e) > 0
   return (
-    <li>
-      <button className="entry" onClick={onClick}>
-        <span className={`dot tone-${a.tone}`} />
+    <li className="timeline-item">
+      <span className={`timeline-dot ${paid ? 'is-paid' : ''}`}>{paid && <Icon name="check" size={12} stroke={3.4} />}</span>
+      <button className={`entry tone-${a.tone}`} onClick={onClick}>
+        <span className="icon-sq">
+          <Icon name={a.icon} size={20} />
+        </span>
         <span className="entry-main">
           <span className="entry-name">
             {a.unit === 'uur' ? `${num(e.quantity)} uur ` : ''}
             {a.short}
           </span>
-          <span className="entry-sub">
-            {time}
-            {e.reason && ` · ${e.reason}`}
-            {e.address && ` · ${e.address}`}
-          </span>
+          <span className="entry-sub">{[time, e.reason, e.address].filter(Boolean).join(' · ')}</span>
         </span>
         <span className="entry-amount">{money(amountOf(e))}</span>
       </button>
@@ -191,7 +260,10 @@ function AskSheet({ a, onClose, onSubmit }: { a: Activity; onClose: () => void; 
       <Sheet title={`${a.short} · ${money(a.price)}`} onClose={onClose}>
         <div className="reason-list">
           {a.reasons.map((r) => (
-            <button key={r} className="btn-reason" onClick={() => onSubmit({ reason: r })}>
+            <button key={r} className={`reason tone-${a.tone}`} onClick={() => onSubmit({ reason: r })}>
+              <span className="icon-sq">
+                <Icon name={a.icon} size={20} />
+              </span>
               {r}
             </button>
           ))}
@@ -202,7 +274,7 @@ function AskSheet({ a, onClose, onSubmit }: { a: Activity; onClose: () => void; 
   return (
     <Sheet title={a.name} onClose={onClose}>
       <form
-        className="ask-form"
+        className="form"
         onSubmit={(ev) => {
           ev.preventDefault()
           if (!(n > 0)) return
@@ -253,17 +325,10 @@ function EditSheet({ e, onClose }: { e: Entry; onClose: () => void }) {
 
   return (
     <Sheet title="Regel aanpassen" onClose={onClose}>
-      <div className="ask-form">
+      <div className="form">
         <label className="field">
           <span>Adres / werkorder (optioneel)</span>
-          <input
-            autoFocus
-            value={address}
-            onChange={(ev) => setAddress(ev.target.value)}
-            placeholder="bv. 4337TR-340"
-            autoCapitalize="characters"
-            autoComplete="off"
-          />
+          <input autoFocus value={address} onChange={(ev) => setAddress(ev.target.value)} placeholder="bv. 4337TR-340" autoCapitalize="characters" autoComplete="off" />
         </label>
         <label className="field">
           <span>Soort werk</span>
@@ -295,7 +360,7 @@ function EditSheet({ e, onClose }: { e: Entry; onClose: () => void }) {
           Opslaan
         </button>
         <button
-          className="btn-danger"
+          className="btn-ghost-danger"
           onClick={() => {
             removeEntry(e.id)
             onClose()

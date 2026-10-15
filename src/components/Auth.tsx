@@ -28,7 +28,7 @@ export function Auth() {
       <img src="/icon.svg" alt="" className="auth-logo" />
       <h1>Turfen</h1>
       <p className="muted">Meterwissels bijhouden per factuurweek.</p>
-      <form className="ask-form" onSubmit={submit}>
+      <form className="form" onSubmit={submit}>
         {mode === 'signup' && (
           <label className="field">
             <span>Naam</span>

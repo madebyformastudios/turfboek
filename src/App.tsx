@@ -7,6 +7,7 @@ import { Today } from './components/Today'
 import { Week } from './components/Week'
 import { More } from './components/More'
 import { Auth } from './components/Auth'
+import { Icon, IconName } from './components/Icon'
 
 type Tab = 'today' | 'week' | 'more'
 
@@ -38,32 +39,39 @@ export default function App() {
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [])
 
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [tab])
+
   if (!ready) return <div className="splash" />
   if (supabase && !session) return <Auth />
 
+  const name: string = session?.user.user_metadata.display_name || session?.user.email?.split('@')[0] || ''
   const status = !online ? 'Offline' : syncing ? 'Synchroniseren…' : outbox.length ? `${outbox.length} wachtend` : null
 
   return (
     <div className="app">
       {status && <div className={`status-pill ${!online ? 'is-offline' : ''}`}>{status}</div>}
       <main className="screen">
-        {tab === 'today' && <Today date={date} setDate={setDate} />}
+        {tab === 'today' && <Today date={date} setDate={setDate} name={name} openMore={() => setTab('more')} />}
         {tab === 'week' && <Week date={date} openDay={(d) => (setDate(d), setTab('today'))} />}
-        {tab === 'more' && <More session={session} />}
+        {tab === 'more' && <More session={session} name={name} />}
       </main>
       <nav className="tabbar">
-        <TabBtn active={tab === 'today'} onClick={() => setTab('today')} label="Turven" icon="▮▮▮" />
-        <TabBtn active={tab === 'week'} onClick={() => setTab('week')} label="Factuurweek" icon="€" />
-        <TabBtn active={tab === 'more'} onClick={() => setTab('more')} label="Meer" icon="•••" />
+        <TabBtn active={tab === 'today'} onClick={() => setTab('today')} label="Turven" icon="tally" />
+        <TabBtn active={tab === 'week'} onClick={() => setTab('week')} label="Factuurweek" icon="chart" />
+        <TabBtn active={tab === 'more'} onClick={() => setTab('more')} label="Profiel" icon="user" />
       </nav>
     </div>
   )
 }
 
-function TabBtn({ active, onClick, label, icon }: { active: boolean; onClick: () => void; label: string; icon: string }) {
+function TabBtn({ active, onClick, label, icon }: { active: boolean; onClick: () => void; label: string; icon: IconName }) {
   return (
     <button className={`tab ${active ? 'is-active' : ''}`} onClick={onClick} aria-current={active ? 'page' : undefined}>
-      <span className="tab-icon" aria-hidden>{icon}</span>
+      <span className="tab-icon">
+        <Icon name={icon} size={22} />
+      </span>
       <span>{label}</span>
     </button>
   )
