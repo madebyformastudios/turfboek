@@ -397,7 +397,7 @@ function EditSheet({ items, focusAddress, onClose }: { items: Entry[]; focusAddr
           Opslaan
         </button>
         <button
-          className="btn-ghost-danger"
+          className="btn-outline-danger"
           onClick={() => {
             items.forEach((x) => removeEntry(x.id))
             onClose()
