@@ -262,7 +262,8 @@ h1, h2, h3 { font-weight: 600; letter-spacing: -0.02em; }
   border: 2px solid var(--line); background: var(--bg);
   display: grid; place-items: center;
 }
-.timeline-dot.is-paid { background: var(--accent); border-color: var(--accent); color: #fff; }
+.timeline-dot.is-small { left: -24px; width: 10px; height: 10px; border: 0; background: var(--line); }
+.timeline-dot.is-small.is-paid { background: var(--accent); }
 .timeline-dot.is-pick { border-color: var(--muted); }
 .timeline-dot.is-pick.is-on { background: var(--accent); border-color: var(--accent); color: #fff; }
 .entry.is-selected { outline: 2px solid var(--accent); outline-offset: -2px; }

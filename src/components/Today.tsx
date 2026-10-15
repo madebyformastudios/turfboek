@@ -346,7 +346,7 @@ function EntryRow({ items, selected, onClick }: { items: Entry[]; selected?: boo
   return (
     <li className="timeline-item">
       {selected === undefined ? (
-        <span className={`timeline-dot ${paid ? 'is-paid' : ''}`}>{paid && <Icon name="check" size={12} stroke={3.4} />}</span>
+        <span className={`timeline-dot is-small ${paid ? 'is-paid' : ''}`} />
       ) : (
         <span className={`timeline-dot is-pick ${selected ? 'is-on' : ''}`}>{selected && <Icon name="check" size={12} stroke={3.4} />}</span>
       )}
