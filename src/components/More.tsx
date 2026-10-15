@@ -96,15 +96,6 @@ export function More({ session, name }: { session: Session | null; name: string 
                 <span className="muted">Open in Safari → deelknop → Zet op beginscherm</span>
               </span>
             </div>
-            <div className="list-row">
-              <span className="icon-sq tone-hour">
-                <Icon name="phone" size={20} />
-              </span>
-              <span className="list-main">
-                <b>Android</b>
-                <span className="muted">Chrome-menu ⋮ → App installeren</span>
-              </span>
-            </div>
           </section>
         </>
       )}
@@ -124,7 +115,6 @@ export function More({ session, name }: { session: Session | null; name: string 
           </li>
         ))}
       </ul>
-      <p className="hint">Combi-gas staat op de factuur als € 10,098. De factuurweek loopt van vrijdag t/m donderdag.</p>
     </>
   )
 }

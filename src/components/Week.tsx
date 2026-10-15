@@ -136,7 +136,6 @@ export function Week({ date, openDay }: { date: string; openDay: (d: string) => 
           </li>
         </ul>
       )}
-      <p className="hint">Leg dit naast je LM Flex factuur. "Klant niet thuis" staat daar op € 0, pand onbewoond of gesloopt op € 15,30.</p>
     </>
   )
 }
