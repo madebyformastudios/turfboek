@@ -95,6 +95,14 @@ export function removeEntry(id: string) {
   void sync()
 }
 
+/** Zet verwijderde regels terug (ongedaan maken), met hun oorspronkelijke id. */
+export function restoreEntries(list: Entry[]) {
+  const ids = new Set(list.map((e) => e.id))
+  const outbox = list.reduce((o, entry) => queue(o, { kind: 'upsert', entry }), state.outbox)
+  set({ entries: [...state.entries.filter((e) => !ids.has(e.id)), ...list], outbox })
+  void sync()
+}
+
 /** Stuurt de wachtrij naar Supabase en haalt daarna de server-stand op. */
 export async function sync() {
   if (!supabase || state.syncing || !navigator.onLine) return

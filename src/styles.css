@@ -126,7 +126,11 @@ h1, h2, h3 { font-weight: 600; letter-spacing: -0.02em; }
 
 .section-title { font-size: 19px; margin: 28px 2px 12px; }
 .section-row { display: flex; align-items: baseline; justify-content: space-between; }
-.section-row .muted { font-size: 14px; margin-right: 2px; }
+.section-row .muted { font-size: 14px; }
+.section-actions { display: flex; align-items: baseline; gap: 4px; }
+.text-btn { font-size: 15px; font-weight: 500; color: var(--muted); padding: 10px 6px; margin: -10px 0; }
+.text-btn.is-strong { color: var(--accent); font-weight: 600; }
+.text-btn:last-child { margin-right: -4px; }
 
 .icon-sq {
   width: 44px; height: 44px; flex: none;
@@ -185,7 +189,8 @@ h1, h2, h3 { font-weight: 600; letter-spacing: -0.02em; }
 
 /* ---------- Samenvatting ---------- */
 .summary { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin: 22px 2px 14px; }
-.summary .eyebrow::first-letter { text-transform: uppercase; }
+.summary > div:first-child { min-width: 0; }
+.summary .eyebrow { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .big-money { font-size: 40px; font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .summary-chips { display: grid; grid-template-columns: auto auto; gap: 6px; }
 .chip-stat {
@@ -258,6 +263,9 @@ h1, h2, h3 { font-weight: 600; letter-spacing: -0.02em; }
   display: grid; place-items: center;
 }
 .timeline-dot.is-paid { background: var(--accent); border-color: var(--accent); color: #fff; }
+.timeline-dot.is-pick { border-color: var(--muted); }
+.timeline-dot.is-pick.is-on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.entry.is-selected { outline: 2px solid var(--accent); outline-offset: -2px; }
 .entry {
   width: 100%;
   display: flex; align-items: center; gap: 12px;
@@ -290,6 +298,28 @@ h1, h2, h3 { font-weight: 600; letter-spacing: -0.02em; }
 .toast button { padding: 12px 10px; border-radius: 14px; font-weight: 600; color: var(--accent); }
 .toast button:active { background: rgba(127, 127, 127, 0.2); }
 @keyframes rise { from { transform: translateY(14px); opacity: 0; } }
+
+/* ---------- Selectiebalk ---------- */
+.select-bar {
+  position: fixed; left: 50%;
+  bottom: calc(var(--tabbar) + env(safe-area-inset-bottom) + 14px);
+  translate: -50% 0;
+  width: min(484px, calc(100% - 28px));
+  background: var(--ink); color: var(--bg);
+  border-radius: 20px;
+  padding: 6px 6px 6px 14px;
+  display: flex; align-items: center; gap: 6px;
+  box-shadow: 0 16px 34px -12px rgba(0, 0, 0, 0.45);
+  animation: rise 0.2s ease-out;
+  z-index: 20;
+}
+.select-count { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.select-count b { font-weight: 600; }
+.select-count span { font-size: 13px; opacity: 0.7; font-variant-numeric: tabular-nums; }
+.select-bar button { padding: 12px 12px; border-radius: 14px; font-weight: 600; color: var(--accent); }
+.select-bar button.is-danger { color: var(--bg); background: var(--danger); }
+.select-bar button:disabled { opacity: 0.4; }
+.select-bar button:active:not(:disabled) { transform: scale(0.97); }
 
 /* ---------- Tabbar ---------- */
 .tabbar {

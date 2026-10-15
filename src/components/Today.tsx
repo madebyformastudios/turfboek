@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ACTIVITIES, Activity, activity, money, num } from '../lib/rates'
-import { daysOf, fmtLong, parse, periodFor, shiftPeriod, today } from '../lib/period'
-import { Entry, addEntry, amountOf, removeEntry, updateEntry, useStore } from '../lib/store'
+import { daysOf, fmtDay, fmtLong, parse, periodFor, shiftPeriod, today } from '../lib/period'
+import { Entry, addEntry, amountOf, removeEntry, restoreEntries, updateEntry, useStore } from '../lib/store'
 import { Sheet } from './Sheet'
 import { Icon } from './Icon'
 
 const buzz = () => navigator.vibrate?.(15)
 
-type Toast = { ids: string[]; label: string }
+// ids gezet = net geturfd, dan kan er nog een adres bij.
+type Toast = { label: string; verb: string; undo: () => void; ids?: string[] }
 
 const greeting = () => {
   const h = new Date().getHours()
@@ -19,6 +20,9 @@ export function Today({ date, setDate, name, openMore }: { date: string; setDate
   const [toast, setToast] = useState<Toast | null>(null)
   const [ask, setAsk] = useState<Activity | null>(null)
   const [edit, setEdit] = useState<{ items: Entry[]; focus: boolean } | null>(null)
+  const [selecting, setSelecting] = useState(false)
+  const [sel, setSel] = useState<Set<string>>(new Set())
+  const [moving, setMoving] = useState(false)
   const timer = useRef<number>()
 
   const day = useMemo(() => entries.filter((e) => e.work_date === date).sort((a, b) => b.created_at.localeCompare(a.created_at)), [entries, date])
@@ -26,6 +30,23 @@ export function Today({ date, setDate, name, openMore }: { date: string; setDate
   const total = day.reduce((s, e) => s + amountOf(e), 0)
   const count = (codes: number[]) => day.filter((e) => codes.includes(e.activity_code)).reduce((s, e) => s + e.quantity, 0)
   const isToday = date === today()
+
+  // Selectie per klus (sleutel = id van de eerste regel, zodat een combi één keuze is).
+  const picked = rows.filter((r) => sel.has(r[0].id))
+  const pickedEntries = picked.flat()
+  const klussen = (n: number) => `${n} ${n === 1 ? 'klus' : 'klussen'}`
+  const stopSelecting = () => {
+    setSelecting(false)
+    setSel(new Set())
+  }
+  useEffect(stopSelecting, [date])
+  const toggle = (key: string) =>
+    setSel((cur) => {
+      const next = new Set(cur)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
 
   const showToast = (t: Toast) => {
     setToast(t)
@@ -37,7 +58,7 @@ export function Today({ date, setDate, name, openMore }: { date: string; setDate
   const quick = (codes: number[], label: string) => {
     buzz()
     const ids = codes.map((c) => addEntry({ work_date: date, activity_code: c }).id)
-    showToast({ ids, label })
+    showToast({ ids, label, verb: 'geturfd', undo: () => ids.forEach(removeEntry) })
   }
 
   const tap = (a: Activity) => {
@@ -46,8 +67,23 @@ export function Today({ date, setDate, name, openMore }: { date: string; setDate
   }
 
   const undo = () => {
-    toast?.ids.forEach(removeEntry)
+    toast?.undo()
     setToast(null)
+  }
+
+  const removePicked = () => {
+    const list = pickedEntries
+    list.forEach((e) => removeEntry(e.id))
+    stopSelecting()
+    showToast({ label: klussen(picked.length), verb: 'verwijderd', undo: () => restoreEntries(list) })
+  }
+
+  const movePicked = (to: string) => {
+    const list = pickedEntries
+    list.forEach((e) => updateEntry(e.id, { work_date: to }))
+    setMoving(false)
+    stopSelecting()
+    showToast({ label: klussen(picked.length), verb: `naar ${fmtDay(to)}`, undo: () => list.forEach((e) => updateEntry(e.id, { work_date: e.work_date })) })
   }
 
   return (
@@ -66,7 +102,7 @@ export function Today({ date, setDate, name, openMore }: { date: string; setDate
 
       <section className="summary">
         <div>
-          <span className="eyebrow">{isToday ? 'Vandaag verdiend' : `Verdiend op ${fmtLong(date)}`}</span>
+          <span className="eyebrow">{isToday ? 'Vandaag verdiend' : `Verdiend op ${fmtDay(date)}`}</span>
           <div className="big-money">{money(total)}</div>
         </div>
         <div className="summary-chips">
@@ -119,16 +155,59 @@ export function Today({ date, setDate, name, openMore }: { date: string; setDate
 
       <div className="section-row">
         <h3 className="section-title">Geturfd</h3>
-        {rows.length > 0 && <span className="muted">{rows.length} {rows.length === 1 ? 'klus' : 'klussen'}</span>}
+        {rows.length > 0 &&
+          (selecting ? (
+            <span className="section-actions">
+              <button className="text-btn" onClick={() => setSel(new Set(sel.size === rows.length ? [] : rows.map((r) => r[0].id)))}>
+                {sel.size === rows.length ? 'Niets' : 'Alles'}
+              </button>
+              <button className="text-btn is-strong" onClick={stopSelecting}>
+                Klaar
+              </button>
+            </span>
+          ) : (
+            <span className="section-actions">
+              <span className="muted">{klussen(rows.length)}</span>
+              <button
+                className="text-btn is-strong"
+                onClick={() => {
+                  setToast(null)
+                  setSelecting(true)
+                }}
+              >
+                Selecteer
+              </button>
+            </span>
+          ))}
       </div>
       {day.length === 0 ? (
         <p className="empty">Nog niks geturfd {isToday ? 'vandaag' : 'op deze dag'}. Tik op E-meter na elke wissel.</p>
       ) : (
         <ul className="timeline">
           {rows.map((items) => (
-            <EntryRow key={items[0].id} items={items} onClick={() => setEdit({ items, focus: false })} />
+            <EntryRow
+              key={items[0].id}
+              items={items}
+              selected={selecting ? sel.has(items[0].id) : undefined}
+              onClick={() => (selecting ? toggle(items[0].id) : setEdit({ items, focus: false }))}
+            />
           ))}
         </ul>
+      )}
+
+      {selecting && (
+        <div className="select-bar" role="toolbar" aria-label="Selectie">
+          <span className="select-count">
+            <b>{picked.length} gekozen</b>
+            <span>{money(pickedEntries.reduce((t, e) => t + amountOf(e), 0))}</span>
+          </span>
+          <button onClick={() => setMoving(true)} disabled={!picked.length}>
+            Verplaats
+          </button>
+          <button className="is-danger" onClick={removePicked} disabled={!picked.length}>
+            Verwijder
+          </button>
+        </div>
       )}
 
       {toast && (
@@ -137,17 +216,19 @@ export function Today({ date, setDate, name, openMore }: { date: string; setDate
             <Icon name="check" size={16} stroke={3} />
           </span>
           <span className="toast-text">
-            <b>{toast.label}</b> geturfd
+            <b>{toast.label}</b> {toast.verb}
           </span>
-          <button
-            onClick={() => {
-              const list = entries.filter((x) => toast.ids.includes(x.id))
-              if (list.length) setEdit({ items: list, focus: true })
-              setToast(null)
-            }}
-          >
-            + adres
-          </button>
+          {toast.ids && (
+            <button
+              onClick={() => {
+                const list = entries.filter((x) => toast.ids!.includes(x.id))
+                if (list.length) setEdit({ items: list, focus: true })
+                setToast(null)
+              }}
+            >
+              + adres
+            </button>
+          )}
           <button onClick={undo}>Ongedaan</button>
         </div>
       )}
@@ -160,12 +241,13 @@ export function Today({ date, setDate, name, openMore }: { date: string; setDate
             buzz()
             const e = addEntry({ work_date: date, activity_code: ask.code, ...v })
             setAsk(null)
-            showToast({ ids: [e.id], label: ask.short })
+            showToast({ ids: [e.id], label: ask.short, verb: 'geturfd', undo: () => removeEntry(e.id) })
           }}
         />
       )}
 
       {edit && <EditSheet items={edit.items} focusAddress={edit.focus} onClose={() => setEdit(null)} />}
+      {moving && <MoveSheet from={date} count={picked.length} entries={entries} onClose={() => setMoving(false)} onMove={movePicked} />}
     </>
   )
 }
@@ -254,7 +336,8 @@ function pairCombis(day: Entry[]): Entry[][] {
 const COMBI: Activity = { ...activity(10), icon: 'combi', short: 'Combi E+G', name: 'Combi E+G' }
 const rowActivity = (items: Entry[]) => (items.length > 1 ? COMBI : activity(items[0].activity_code))
 
-function EntryRow({ items, onClick }: { items: Entry[]; onClick: () => void }) {
+/** selected is alleen gezet in selectiemodus. */
+function EntryRow({ items, selected, onClick }: { items: Entry[]; selected?: boolean; onClick: () => void }) {
   const e = items[0]
   const a = rowActivity(items)
   const amount = items.reduce((s, x) => s + amountOf(x), 0)
@@ -262,8 +345,12 @@ function EntryRow({ items, onClick }: { items: Entry[]; onClick: () => void }) {
   const paid = amount > 0
   return (
     <li className="timeline-item">
-      <span className={`timeline-dot ${paid ? 'is-paid' : ''}`}>{paid && <Icon name="check" size={12} stroke={3.4} />}</span>
-      <button className={`entry tone-${a.tone}`} onClick={onClick}>
+      {selected === undefined ? (
+        <span className={`timeline-dot ${paid ? 'is-paid' : ''}`}>{paid && <Icon name="check" size={12} stroke={3.4} />}</span>
+      ) : (
+        <span className={`timeline-dot is-pick ${selected ? 'is-on' : ''}`}>{selected && <Icon name="check" size={12} stroke={3.4} />}</span>
+      )}
+      <button className={`entry tone-${a.tone} ${selected ? 'is-selected' : ''}`} onClick={onClick} aria-pressed={selected}>
         <span className="icon-sq">
           <Icon name={a.icon} size={20} />
         </span>
@@ -407,6 +494,20 @@ function EditSheet({ items, focusAddress, onClose }: { items: Entry[]; focusAddr
           }}
         >
           Verwijderen
+        </button>
+      </div>
+    </Sheet>
+  )
+}
+
+function MoveSheet({ from, count, entries, onClose, onMove }: { from: string; count: number; entries: Entry[]; onClose: () => void; onMove: (to: string) => void }) {
+  const [to, setTo] = useState(from)
+  return (
+    <Sheet title={`${count} ${count === 1 ? 'klus' : 'klussen'} verplaatsen`} onClose={onClose}>
+      <div className="form">
+        <WeekStrip date={to} setDate={setTo} entries={entries} />
+        <button className="btn-primary" disabled={to === from} onClick={() => onMove(to)}>
+          {to === from ? 'Kies een andere dag' : `Naar ${fmtLong(to)}`}
         </button>
       </div>
     </Sheet>
