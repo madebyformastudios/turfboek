@@ -187,12 +187,14 @@ h1, h2, h3 { font-weight: 600; letter-spacing: -0.02em; }
 .summary { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin: 22px 2px 14px; }
 .summary .eyebrow::first-letter { text-transform: uppercase; }
 .big-money { font-size: 40px; font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1.1; }
-.summary-chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.summary-chips { display: grid; grid-template-columns: auto auto; gap: 6px; }
 .chip-stat {
   padding: 6px 10px; border-radius: 99px;
   background: var(--tone-bg); color: var(--tone-fg);
-  font-size: 13px; font-weight: 500; white-space: nowrap;
+  font-size: 13px; font-weight: 500; white-space: nowrap; text-align: center;
 }
+.chip-stat.tone-combi { background: linear-gradient(115deg, var(--elec-bg) 50%, var(--gas-bg) 50%); color: var(--ink); }
+.chip-stat.tone-combi b { color: var(--elec-fg); }
 .chip-stat b { font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* ---------- Hero: E-meter ---------- */

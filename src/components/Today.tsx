@@ -71,10 +71,13 @@ export function Today({ date, setDate, name, openMore }: { date: string; setDate
         </div>
         <div className="summary-chips">
           <span className="chip-stat tone-elec">
-            <b>{num(count([10, 30]))}</b> E
+            <b>{num(count([30]))}</b> E
+          </span>
+          <span className="chip-stat tone-combi">
+            <b>{num(count([10]))}</b> E+G
           </span>
           <span className="chip-stat tone-gas">
-            <b>{num(count([20, 40]))}</b> G
+            <b>{num(count([40]))}</b> G
           </span>
           <span className="chip-stat tone-fail">
             <b>{num(count([0, 50, 60, 70]))}</b> niet
