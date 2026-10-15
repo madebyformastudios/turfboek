@@ -18,7 +18,7 @@ export function Today({ date, setDate, name, openMore }: { date: string; setDate
   const { entries } = useStore()
   const [toast, setToast] = useState<Toast | null>(null)
   const [ask, setAsk] = useState<Activity | null>(null)
-  const [edit, setEdit] = useState<Entry[] | null>(null)
+  const [edit, setEdit] = useState<{ items: Entry[]; focus: boolean } | null>(null)
   const timer = useRef<number>()
 
   const day = useMemo(() => entries.filter((e) => e.work_date === date).sort((a, b) => b.created_at.localeCompare(a.created_at)), [entries, date])
@@ -123,7 +123,7 @@ export function Today({ date, setDate, name, openMore }: { date: string; setDate
       ) : (
         <ul className="timeline">
           {rows.map((items) => (
-            <EntryRow key={items[0].id} items={items} onClick={() => setEdit(items)} />
+            <EntryRow key={items[0].id} items={items} onClick={() => setEdit({ items, focus: false })} />
           ))}
         </ul>
       )}
@@ -139,7 +139,7 @@ export function Today({ date, setDate, name, openMore }: { date: string; setDate
           <button
             onClick={() => {
               const list = entries.filter((x) => toast.ids.includes(x.id))
-              if (list.length) setEdit(list)
+              if (list.length) setEdit({ items: list, focus: true })
               setToast(null)
             }}
           >
@@ -162,7 +162,7 @@ export function Today({ date, setDate, name, openMore }: { date: string; setDate
         />
       )}
 
-      {edit && <EditSheet items={edit} onClose={() => setEdit(null)} />}
+      {edit && <EditSheet items={edit.items} focusAddress={edit.focus} onClose={() => setEdit(null)} />}
     </>
   )
 }
@@ -327,7 +327,7 @@ function AskSheet({ a, onClose, onSubmit }: { a: Activity; onClose: () => void; 
   )
 }
 
-function EditSheet({ items, onClose }: { items: Entry[]; onClose: () => void }) {
+function EditSheet({ items, focusAddress, onClose }: { items: Entry[]; focusAddress: boolean; onClose: () => void }) {
   const e = items[0]
   const isCombi = items.length > 1
   const a = activity(e.activity_code)
@@ -359,7 +359,7 @@ function EditSheet({ items, onClose }: { items: Entry[]; onClose: () => void }) 
       <div className="form">
         <label className="field">
           <span>Adres / werkorder (optioneel)</span>
-          <input autoFocus value={address} onChange={(ev) => setAddress(ev.target.value)} placeholder="bv. 4337TR-340" autoCapitalize="characters" autoComplete="off" />
+          <input autoFocus={focusAddress} value={address} onChange={(ev) => setAddress(ev.target.value)} placeholder="bv. 4337TR-340" autoCapitalize="characters" autoComplete="off" />
         </label>
         {isCombi ? (
           <p className="muted">
