@@ -18,10 +18,11 @@ export function Today({ date, setDate, name, openMore }: { date: string; setDate
   const { entries } = useStore()
   const [toast, setToast] = useState<Toast | null>(null)
   const [ask, setAsk] = useState<Activity | null>(null)
-  const [edit, setEdit] = useState<Entry | null>(null)
+  const [edit, setEdit] = useState<Entry[] | null>(null)
   const timer = useRef<number>()
 
   const day = useMemo(() => entries.filter((e) => e.work_date === date).sort((a, b) => b.created_at.localeCompare(a.created_at)), [entries, date])
+  const rows = useMemo(() => pairCombis(day), [day])
   const total = day.reduce((s, e) => s + amountOf(e), 0)
   const count = (codes: number[]) => day.filter((e) => codes.includes(e.activity_code)).reduce((s, e) => s + e.quantity, 0)
   const isToday = date === today()
@@ -53,10 +54,7 @@ export function Today({ date, setDate, name, openMore }: { date: string; setDate
     <>
       <header className="hello">
         <div>
-          <h1>
-            {greeting()}
-            {name && `, ${name}`}
-          </h1>
+          <h1>{greeting()}</h1>
           <p className="hello-date">{fmtLong(today())}</p>
         </div>
         <button className="avatar" onClick={openMore} aria-label="Profiel">
@@ -118,14 +116,14 @@ export function Today({ date, setDate, name, openMore }: { date: string; setDate
 
       <div className="section-row">
         <h3 className="section-title">Geturfd</h3>
-        {day.length > 0 && <span className="muted">{day.length} regels</span>}
+        {rows.length > 0 && <span className="muted">{rows.length} {rows.length === 1 ? 'klus' : 'klussen'}</span>}
       </div>
       {day.length === 0 ? (
         <p className="empty">Nog niks geturfd {isToday ? 'vandaag' : 'op deze dag'}. Tik op E-meter na elke wissel.</p>
       ) : (
         <ul className="timeline">
-          {day.map((e) => (
-            <EntryRow key={e.id} e={e} onClick={() => setEdit(e)} />
+          {rows.map((items) => (
+            <EntryRow key={items[0].id} items={items} onClick={() => setEdit(items)} />
           ))}
         </ul>
       )}
@@ -140,8 +138,8 @@ export function Today({ date, setDate, name, openMore }: { date: string; setDate
           </span>
           <button
             onClick={() => {
-              const e = entries.find((x) => x.id === toast.ids[0])
-              if (e) setEdit(e)
+              const list = entries.filter((x) => toast.ids.includes(x.id))
+              if (list.length) setEdit(list)
               setToast(null)
             }}
           >
@@ -164,7 +162,7 @@ export function Today({ date, setDate, name, openMore }: { date: string; setDate
         />
       )}
 
-      {edit && <EditSheet e={edit} onClose={() => setEdit(null)} />}
+      {edit && <EditSheet items={edit} onClose={() => setEdit(null)} />}
     </>
   )
 }
@@ -228,10 +226,37 @@ function Tile({ a, onClick, compact }: { a: Activity; onClick: () => void; compa
   )
 }
 
-function EntryRow({ e, onClick }: { e: Entry; onClick: () => void }) {
-  const a = activity(e.activity_code)
+/**
+ * Een combi-tik maakt twee regels (code 10 + 20, zo staan ze ook op de factuur).
+ * In de lijst tonen we die als één klus "Combi E+G".
+ */
+function pairCombis(day: Entry[]): Entry[][] {
+  const used = new Set<string>()
+  const rows: Entry[][] = []
+  for (const e of day) {
+    if (used.has(e.id)) continue
+    used.add(e.id)
+    const mateCode = e.activity_code === 10 ? 20 : e.activity_code === 20 ? 10 : null
+    const t = Date.parse(e.created_at)
+    const mate =
+      mateCode === null
+        ? undefined
+        : day.find((x) => !used.has(x.id) && x.activity_code === mateCode && Math.abs(Date.parse(x.created_at) - t) < 2000)
+    if (mate) used.add(mate.id)
+    rows.push(mate ? (e.activity_code === 10 ? [e, mate] : [mate, e]) : [e])
+  }
+  return rows
+}
+
+const COMBI: Activity = { ...activity(10), icon: 'combi', short: 'Combi E+G', name: 'Combi E+G' }
+const rowActivity = (items: Entry[]) => (items.length > 1 ? COMBI : activity(items[0].activity_code))
+
+function EntryRow({ items, onClick }: { items: Entry[]; onClick: () => void }) {
+  const e = items[0]
+  const a = rowActivity(items)
+  const amount = items.reduce((s, x) => s + amountOf(x), 0)
   const time = new Date(e.created_at).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })
-  const paid = amountOf(e) > 0
+  const paid = amount > 0
   return (
     <li className="timeline-item">
       <span className={`timeline-dot ${paid ? 'is-paid' : ''}`}>{paid && <Icon name="check" size={12} stroke={3.4} />}</span>
@@ -246,7 +271,7 @@ function EntryRow({ e, onClick }: { e: Entry; onClick: () => void }) {
           </span>
           <span className="entry-sub">{[time, e.reason, e.address].filter(Boolean).join(' · ')}</span>
         </span>
-        <span className="entry-amount">{money(amountOf(e))}</span>
+        <span className="entry-amount">{money(amount)}</span>
       </button>
     </li>
   )
@@ -302,7 +327,9 @@ function AskSheet({ a, onClose, onSubmit }: { a: Activity; onClose: () => void; 
   )
 }
 
-function EditSheet({ e, onClose }: { e: Entry; onClose: () => void }) {
+function EditSheet({ items, onClose }: { items: Entry[]; onClose: () => void }) {
+  const e = items[0]
+  const isCombi = items.length > 1
   const a = activity(e.activity_code)
   const [address, setAddress] = useState(e.address ?? '')
   const [code, setCode] = useState(e.activity_code)
@@ -311,6 +338,10 @@ function EditSheet({ e, onClose }: { e: Entry; onClose: () => void }) {
   const cur = activity(code)
 
   const save = () => {
+    if (isCombi) {
+      items.forEach((x) => updateEntry(x.id, { address: address.trim().toUpperCase() || null }))
+      return onClose()
+    }
     const n = Number(qty.replace(',', '.'))
     const changedType = code !== e.activity_code
     updateEntry(e.id, {
@@ -324,24 +355,30 @@ function EditSheet({ e, onClose }: { e: Entry; onClose: () => void }) {
   }
 
   return (
-    <Sheet title="Regel aanpassen" onClose={onClose}>
+    <Sheet title={isCombi ? 'Combi E+G aanpassen' : 'Regel aanpassen'} onClose={onClose}>
       <div className="form">
         <label className="field">
           <span>Adres / werkorder (optioneel)</span>
           <input autoFocus value={address} onChange={(ev) => setAddress(ev.target.value)} placeholder="bv. 4337TR-340" autoCapitalize="characters" autoComplete="off" />
         </label>
-        <label className="field">
-          <span>Soort werk</span>
-          <select value={code} onChange={(ev) => setCode(Number(ev.target.value))}>
-            {ACTIVITIES.map((x) => (
-              <option key={x.code} value={x.code}>
-                {x.name}
-                {x.unit === 'stuks' ? ` – ${money(x.price)}` : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-        {cur.reasons && (
+        {isCombi ? (
+          <p className="muted">
+            E-meter {money(items[0].unit_price)} + G-meter {money(items[1].unit_price)}. Op de factuur staan deze als twee regels.
+          </p>
+        ) : (
+          <label className="field">
+            <span>Soort werk</span>
+            <select value={code} onChange={(ev) => setCode(Number(ev.target.value))}>
+              {ACTIVITIES.map((x) => (
+                <option key={x.code} value={x.code}>
+                  {x.name}
+                  {x.unit === 'stuks' ? ` – ${money(x.price)}` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {!isCombi && cur.reasons && (
           <div className="chips">
             {cur.reasons.map((r) => (
               <button type="button" key={r} className={`chip ${(reason || cur.reasons![0]) === r ? 'is-on' : ''}`} onClick={() => setReason(r)}>
@@ -350,7 +387,7 @@ function EditSheet({ e, onClose }: { e: Entry; onClose: () => void }) {
             ))}
           </div>
         )}
-        {cur.unit !== 'stuks' && (
+        {!isCombi && cur.unit !== 'stuks' && (
           <label className="field">
             <span>{cur.unit === 'uur' ? 'Aantal uur' : 'Bedrag in euro'}</span>
             <input inputMode="decimal" value={qty} onChange={(ev) => setQty(ev.target.value)} />
@@ -362,7 +399,7 @@ function EditSheet({ e, onClose }: { e: Entry; onClose: () => void }) {
         <button
           className="btn-ghost-danger"
           onClick={() => {
-            removeEntry(e.id)
+            items.forEach((x) => removeEntry(x.id))
             onClose()
           }}
         >
