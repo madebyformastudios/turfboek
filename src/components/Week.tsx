@@ -2,12 +2,16 @@ import { useMemo, useState } from 'react'
 import { ACTIVITIES, money, num } from '../lib/rates'
 import { daysOf, fmtDay, periodFor, shiftPeriod, today, weekdayShort } from '../lib/period'
 import { amountOf, useStore } from '../lib/store'
+import { shareFile, weekCsv, weekPdf } from '../lib/export'
 import { Icon } from './Icon'
+import { Sheet } from './Sheet'
 
-export function Week({ date, openDay }: { date: string; openDay: (d: string) => void }) {
+export function Week({ date, openDay, who }: { date: string; openDay: (d: string) => void; who: string }) {
   const { entries } = useStore()
   const [p, setP] = useState(() => periodFor(date))
   const [copied, setCopied] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [busy, setBusy] = useState(false)
   const now = today()
   const current = periodFor(now)
   const isCurrent = p.end === current.end
@@ -39,6 +43,16 @@ export function Week({ date, openDay }: { date: string; openDay: (d: string) => 
         setTimeout(() => setCopied(false), 2000)
       }
     } catch {}
+  }
+
+  const exportFile = async (ext: 'pdf' | 'csv') => {
+    setBusy(true)
+    try {
+      await shareFile(ext === 'pdf' ? await weekPdf(p, inPeriod, who) : weekCsv(inPeriod), p, ext)
+      setExporting(false)
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -103,7 +117,7 @@ export function Week({ date, openDay }: { date: string; openDay: (d: string) => 
             <b>{num(meters([0, 50, 60, 70]))}</b>
           </div>
         </div>
-        <button className="btn-accent" onClick={share} disabled={lines.length === 0}>
+        <button className="btn-accent" onClick={() => setExporting(true)} disabled={lines.length === 0}>
           <Icon name="share" size={19} />
           {copied ? 'Gekopieerd' : 'Overzicht delen'}
         </button>
@@ -135,6 +149,40 @@ export function Week({ date, openDay }: { date: string; openDay: (d: string) => 
             <span>{money(total)}</span>
           </li>
         </ul>
+      )}
+
+      {exporting && (
+        <Sheet title={`Week ${p.week} delen`} onClose={() => setExporting(false)}>
+          <div className="reason-list">
+            <button className="reason tone-paid-fail" onClick={() => exportFile('pdf')} disabled={busy}>
+              <span className="icon-sq">
+                <Icon name="share" size={20} />
+              </span>
+              <span className="list-main">
+                <b>PDF</b>
+                <span className="muted">Specificatie en alle regels, voor je boekhouder of LM Flex</span>
+              </span>
+            </button>
+            <button className="reason tone-hour" onClick={() => exportFile('csv')} disabled={busy}>
+              <span className="icon-sq">
+                <Icon name="chart" size={20} />
+              </span>
+              <span className="list-main">
+                <b>CSV voor Excel</b>
+                <span className="muted">Elke regel met datum, tijd, code en adres</span>
+              </span>
+            </button>
+            <button className="reason tone-fail" onClick={share}>
+              <span className="icon-sq">
+                <Icon name="tally" size={20} />
+              </span>
+              <span className="list-main">
+                <b>{copied ? 'Gekopieerd' : 'Als tekst'}</b>
+                <span className="muted">Kort overzicht voor WhatsApp of mail</span>
+              </span>
+            </button>
+          </div>
+        </Sheet>
       )}
     </>
   )

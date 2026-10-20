@@ -5,7 +5,7 @@ import { sync, useStore } from './lib/store'
 import { today } from './lib/period'
 import { Today } from './components/Today'
 import { Week } from './components/Week'
-import { More } from './components/More'
+import { More, PasswordSheet } from './components/More'
 import { Auth } from './components/Auth'
 import { Icon, IconName } from './components/Icon'
 
@@ -16,6 +16,7 @@ export default function App() {
   const [date, setDate] = useState(today())
   const [session, setSession] = useState<Session | null>(null)
   const [ready, setReady] = useState(!supabase)
+  const [recovery, setRecovery] = useState(false)
   const { outbox, online, syncing } = useStore()
 
   useEffect(() => {
@@ -25,7 +26,8 @@ export default function App() {
       setReady(true)
       void sync()
     })
-    const { data } = supabase.auth.onAuthStateChange((_e, s) => {
+    const { data } = supabase.auth.onAuthStateChange((e, s) => {
+      if (e === 'PASSWORD_RECOVERY') setRecovery(true)
       setSession(s)
       void sync()
     })
@@ -54,7 +56,7 @@ export default function App() {
       {status && <div className={`status-pill ${!online ? 'is-offline' : ''}`}>{status}</div>}
       <main className="screen">
         {tab === 'today' && <Today date={date} setDate={setDate} name={name} openMore={() => setTab('more')} />}
-        {tab === 'week' && <Week date={date} openDay={(d) => (setDate(d), setTab('today'))} />}
+        {tab === 'week' && <Week date={date} openDay={(d) => (setDate(d), setTab('today'))} who={[name, session?.user.email].filter(Boolean).join(' · ')} />}
         {tab === 'more' && <More session={session} name={name} />}
       </main>
       <nav className="tabbar">
@@ -62,6 +64,7 @@ export default function App() {
         <TabBtn active={tab === 'week'} onClick={() => setTab('week')} label="Factuurweek" icon="chart" />
         <TabBtn active={tab === 'more'} onClick={() => setTab('more')} label="Profiel" icon="user" />
       </nav>
+      {recovery && <PasswordSheet title="Kies een nieuw wachtwoord" onClose={() => setRecovery(false)} />}
     </div>
   )
 }

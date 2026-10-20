@@ -1,9 +1,12 @@
+import { FormEvent, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { ACTIVITIES, money } from '../lib/rates'
 import { clearLocal, sync, useStore } from '../lib/store'
 import { ThemePref, setTheme, useTheme } from '../lib/theme'
 import { Icon, IconName } from './Icon'
+import { Sheet } from './Sheet'
+import { authError } from './Auth'
 
 const THEMES: { value: ThemePref; label: string; icon: IconName }[] = [
   { value: 'system', label: 'Automatisch', icon: 'phone' },
@@ -15,6 +18,7 @@ export function More({ session, name }: { session: Session | null; name: string 
   const { entries, outbox, lastSync, syncing, error } = useStore()
   const theme = useTheme()
   const standalone = window.matchMedia('(display-mode: standalone)').matches
+  const [pw, setPw] = useState(false)
 
   const syncText = syncing
     ? 'Synchroniseren…'
@@ -46,7 +50,7 @@ export function More({ session, name }: { session: Session | null; name: string 
 
       {supabase && session ? (
         <>
-          <h3 className="section-title">Synchronisatie</h3>
+          <h3 className="section-title">Account</h3>
           <section className="card list-card">
             <div className="list-row">
               <span className="icon-sq tone-gas">
@@ -72,7 +76,11 @@ export function More({ session, name }: { session: Session | null; name: string 
                 Uitloggen
               </button>
             </div>
+            <button className="btn-soft is-wide" onClick={() => setPw(true)}>
+              Wachtwoord wijzigen
+            </button>
           </section>
+          {pw && <PasswordSheet title="Wachtwoord wijzigen" onClose={() => setPw(false)} />}
         </>
       ) : (
         <>
@@ -116,5 +124,46 @@ export function More({ session, name }: { session: Session | null; name: string 
         ))}
       </ul>
     </>
+  )
+}
+
+/** Nieuw wachtwoord zetten; ook gebruikt na de resetlink uit de mail. */
+export function PasswordSheet({ title, onClose }: { title: string; onClose: () => void }) {
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  const [done, setDone] = useState(false)
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault()
+    setBusy(true)
+    const { error } = await supabase!.auth.updateUser({ password })
+    setBusy(false)
+    if (error) setMsg(authError(error.message))
+    else setDone(true)
+  }
+
+  return (
+    <Sheet title={title} onClose={onClose}>
+      {done ? (
+        <div className="form">
+          <p className="muted">Je wachtwoord is gewijzigd.</p>
+          <button className="btn-primary" onClick={onClose}>
+            Klaar
+          </button>
+        </div>
+      ) : (
+        <form className="form" onSubmit={submit}>
+          <label className="field">
+            <span>Nieuw wachtwoord (minstens 6 tekens)</span>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" minLength={6} required />
+          </label>
+          {msg && <p className="form-msg">{msg}</p>}
+          <button className="btn-primary" disabled={busy || password.length < 6}>
+            {busy ? 'Even geduld…' : 'Opslaan'}
+          </button>
+        </form>
+      )}
+    </Sheet>
   )
 }
