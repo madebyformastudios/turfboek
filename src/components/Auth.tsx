@@ -17,7 +17,7 @@ export function Auth() {
     const { data, error } =
       mode === 'login'
         ? await supabase.auth.signInWithPassword({ email, password })
-        : await supabase.auth.signUp({ email, password, options: { data: { display_name: name } } })
+        : await supabase.auth.signUp({ email, password, options: { data: { display_name: name }, emailRedirectTo: location.origin } })
     setBusy(false)
     if (error) setMsg(error.message === 'Invalid login credentials' ? 'E-mail of wachtwoord klopt niet.' : error.message)
     else if (mode === 'signup' && !data.session) setMsg('Check je mail om je account te bevestigen, log daarna in.')
