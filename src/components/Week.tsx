@@ -1,12 +1,103 @@
 import { useMemo, useState } from 'react'
 import { ACTIVITIES, money, num } from '../lib/rates'
-import { daysOf, fmtDay, periodFor, shiftPeriod, today, weekdayShort } from '../lib/period'
+import { Period, addDays, daysOf, fmtDay, periodFor, shiftPeriod, today, weekdayShort } from '../lib/period'
 import { amountOf, useStore } from '../lib/store'
 import { shareFile, weekCsv, weekPdf } from '../lib/export'
 import { Icon } from './Icon'
 import { Sheet } from './Sheet'
 
-export function Week({ date, openDay, who }: { date: string; openDay: (d: string) => void; who: string }) {
+type WeekProps = { date: string; openDay: (d: string) => void; who: string }
+
+export function Week(props: WeekProps) {
+  const [view, setView] = useState<'work' | 'pay'>('work')
+  return (
+    <>
+      <div className="segmented is-pair" role="radiogroup" aria-label="Overzicht">
+        <button role="radio" aria-checked={view === 'work'} className={view === 'work' ? 'is-on' : ''} onClick={() => setView('work')}>
+          <Icon name="chart" size={18} />
+          Gewerkt
+        </button>
+        <button role="radio" aria-checked={view === 'pay'} className={view === 'pay' ? 'is-on' : ''} onClick={() => setView('pay')}>
+          <Icon name="clock" size={18} />
+          Uitbetaling
+        </button>
+      </div>
+      {view === 'work' ? <Worked {...props} /> : <Payouts />}
+    </>
+  )
+}
+
+// LM Flex betaalt 4 weken na de donderdag waarop de factuurweek sluit.
+export const payDay = (p: Period) => addDays(p.end, 28)
+
+function Payouts() {
+  const { entries } = useStore()
+  const now = today()
+  // shortcut: 8 weken terug; de app haalt toch maar 120 dagen op.
+  const weeks = Array.from({ length: 9 }, (_, i) => shiftPeriod(periodFor(now), -i)).map((p) => ({
+    p,
+    pay: payDay(p),
+    total: entries.filter((e) => e.work_date >= p.start && e.work_date <= p.end).reduce((s, e) => s + amountOf(e), 0),
+  }))
+  const coming = weeks.filter((w) => w.pay >= now).reverse()
+  const paid = weeks.filter((w) => w.pay < now).slice(0, 4)
+  const next = coming[0]
+  const open = coming.reduce((s, w) => s + w.total, 0)
+
+  const row = ({ p, pay, total }: (typeof weeks)[number], done: boolean) => (
+    <li key={p.end} className={done ? 'tone-hour' : p.end >= now ? 'tone-elec' : 'tone-gas'}>
+      <span className="icon-sq">
+        <Icon name={done ? 'check' : 'clock'} size={18} />
+      </span>
+      <span className="spec-main">
+        <span className="spec-name">{pay === now ? 'Vandaag' : fmtDay(pay)}</span>
+        <span className="spec-sub">
+          Week {p.week} · {p.end >= now ? 'loopt nog' : `${fmtDay(p.start)} – ${fmtDay(p.end)}`}
+        </span>
+      </span>
+      <span className="spec-amount">{money(total)}</span>
+    </li>
+  )
+
+  return (
+    <>
+      <header className="page-head">
+        <h1>
+          Jouw
+          <br />
+          uitbetalingen
+        </h1>
+      </header>
+      <p className="page-sub">Elke donderdag, 4 weken na het sluiten van de factuurweek</p>
+
+      <section className="card earned">
+        <div className="earned-head">
+          <div>
+            <h3>{next.pay === now ? 'Vandaag' : 'Volgende'}</h3>
+            <span className="muted">
+              {fmtDay(next.pay)} · werk van week {next.p.week}
+            </span>
+          </div>
+          <div className="earned-total">{money(next.total)}</div>
+        </div>
+      </section>
+
+      <h3 className="section-title">Komt nog</h3>
+      <ul className="spec-list">
+        {coming.map((w) => row(w, false))}
+        <li className="spec-total">
+          <span>Nog te ontvangen</span>
+          <span>{money(open)}</span>
+        </li>
+      </ul>
+
+      <h3 className="section-title">Al uitbetaald</h3>
+      <ul className="spec-list">{paid.map((w) => row(w, true))}</ul>
+    </>
+  )
+}
+
+function Worked({ date, openDay, who }: WeekProps) {
   const { entries } = useStore()
   const [p, setP] = useState(() => periodFor(date))
   const [copied, setCopied] = useState(false)
