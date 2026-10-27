@@ -27,8 +27,8 @@ export function Week(props: WeekProps) {
   )
 }
 
-// LM Flex betaalt 4 weken na de donderdag waarop de factuurweek sluit.
-export const payDay = (p: Period) => addDays(p.end, 28)
+// Factuur op de donderdag na de week (zondag + 4), betaling 4 weken later.
+export const payDay = (p: Period) => addDays(p.end, 32)
 
 function Payouts() {
   const { entries } = useStore()
@@ -68,7 +68,7 @@ function Payouts() {
           uitbetalingen
         </h1>
       </header>
-      <p className="page-sub">Elke donderdag, 4 weken na het sluiten van de factuurweek</p>
+      <p className="page-sub">Elke donderdag, 4 weken na de factuurdatum</p>
 
       <section className="card earned">
         <div className="earned-head">

@@ -1,5 +1,5 @@
-// Factuurperiode: vrijdag t/m donderdag (LM Flex self-billing).
-// Weeknummer = ISO-week van de afsluitende donderdag (zo staat het op de factuur).
+// Factuurperiode: ISO-week, maandag t/m zondag (LM Flex self-billing, factuur WK 42_26 bevestigt dit).
+// LM Flex maakt de factuur de donderdag na de week; jaartal = ISO-jaar (dat van de donderdag in de week).
 
 export const pad = (n: number) => String(n).padStart(2, '0')
 export const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
@@ -29,14 +29,14 @@ export interface Period {
 }
 
 /** endDow: 0=zo … 4=do … 6=za. De periode eindigt op die dag (inclusief). */
-export function periodFor(date: string, endDow = 4): Period {
+export function periodFor(date: string, endDow = 0): Period {
   const d = parse(date)
   const diff = (endDow - d.getDay() + 7) % 7
   const end = addDays(date, diff)
-  return { start: addDays(end, -6), end, week: isoWeek(end), year: parse(end).getFullYear() }
+  return { start: addDays(end, -6), end, week: isoWeek(end), year: parse(addDays(end, -3)).getFullYear() }
 }
 
-export const shiftPeriod = (p: Period, n: number, endDow = 4) => periodFor(addDays(p.end, 7 * n), endDow)
+export const shiftPeriod = (p: Period, n: number, endDow = 0) => periodFor(addDays(p.end, 7 * n), endDow)
 
 export const daysOf = (p: Period) => Array.from({ length: 7 }, (_, i) => addDays(p.start, i))
 
