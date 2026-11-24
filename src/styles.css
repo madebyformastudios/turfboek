@@ -460,6 +460,7 @@ h1, h2, h3 { font-weight: 600; letter-spacing: -0.02em; }
 .spec-list li { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
 .spec-list li + li { border-top: 1px solid var(--line); }
 .spec-list .icon-sq { width: 38px; height: 38px; border-radius: 12px; }
+.spec-btn { flex: 1; display: flex; align-items: center; gap: 12px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .spec-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .spec-name { font-weight: 500; font-size: 15px; }
 .spec-sub { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }

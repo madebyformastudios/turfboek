@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ACTIVITIES, money, num } from '../lib/rates'
 import { Period, addDays, daysOf, fmtDay, periodFor, shiftPeriod, today, weekdayShort } from '../lib/period'
 import { amountOf, useStore } from '../lib/store'
 import { shareFile, weekCsv, weekPdf } from '../lib/export'
+import { supabase } from '../lib/supabase'
 import { Icon } from './Icon'
 import { Sheet } from './Sheet'
 
@@ -30,8 +31,44 @@ export function Week(props: WeekProps) {
 // Factuur op de donderdag na de week (zondag + 4), betaling 4 weken later.
 export const payDay = (p: Period) => addDays(p.end, 32)
 
+// Weken (p.end) die eerder dan berekend zijn uitbetaald. Ingelogd: in user_metadata, zodat het op elk toestel klopt.
+const PAID_KEY = 'turfen:paid'
+function usePaidEarly() {
+  const [list, setList] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(PAID_KEY) ?? '[]')
+    } catch {
+      return []
+    }
+  })
+  const save = (next: string[]) => {
+    setList(next)
+    localStorage.setItem(PAID_KEY, JSON.stringify(next))
+  }
+  useEffect(() => {
+    supabase?.auth.getSession().then(({ data }) => {
+      const remote = data.session?.user.user_metadata.paid_weeks
+      if (Array.isArray(remote)) save(remote)
+    })
+  }, [])
+  const toggle = async (end: string) => {
+    const prev = list
+    const next = list.includes(end) ? list.filter((x) => x !== end) : [...list, end]
+    save(next)
+    if (!supabase) return
+    const { error } = await supabase.auth.updateUser({ data: { paid_weeks: next } })
+    if (error) {
+      save(prev)
+      alert('Opslaan lukte niet. Ben je online?')
+    }
+  }
+  return [new Set(list), toggle] as const
+}
+
 function Payouts() {
   const { entries } = useStore()
+  const [early, toggleEarly] = usePaidEarly()
+  const [pick, setPick] = useState<(typeof weeks)[number] | null>(null)
   const now = today()
   // shortcut: 8 weken terug; de app haalt toch maar 120 dagen op.
   const weeks = Array.from({ length: 9 }, (_, i) => shiftPeriod(periodFor(now), -i)).map((p) => ({
@@ -39,25 +76,43 @@ function Payouts() {
     pay: payDay(p),
     total: entries.filter((e) => e.work_date >= p.start && e.work_date <= p.end).reduce((s, e) => s + amountOf(e), 0),
   }))
-  const coming = weeks.filter((w) => w.pay >= now).reverse()
-  const paid = weeks.filter((w) => w.pay < now).slice(0, 4)
+  const isPaid = (w: (typeof weeks)[number]) => w.pay < now || early.has(w.p.end)
+  const coming = weeks.filter((w) => !isPaid(w)).reverse()
+  const paid = weeks.filter(isPaid).slice(0, 4)
   const next = coming[0]
   const open = coming.reduce((s, w) => s + w.total, 0)
 
-  const row = ({ p, pay, total }: (typeof weeks)[number], done: boolean) => (
-    <li key={p.end} className={done ? 'tone-hour' : p.end >= now ? 'tone-elec' : 'tone-gas'}>
-      <span className="icon-sq">
-        <Icon name={done ? 'check' : 'clock'} size={18} />
-      </span>
-      <span className="spec-main">
-        <span className="spec-name">{pay === now ? 'Vandaag' : fmtDay(pay)}</span>
-        <span className="spec-sub">
-          Week {p.week} · {p.end >= now ? 'loopt nog' : `${fmtDay(p.start)} – ${fmtDay(p.end)}`}
+  const row = (w: (typeof weeks)[number], done: boolean) => {
+    const { p, pay, total } = w
+    const inner = (
+      <>
+        <span className="icon-sq">
+          <Icon name={done ? 'check' : 'clock'} size={18} />
         </span>
-      </span>
-      <span className="spec-amount">{money(total)}</span>
-    </li>
-  )
+        <span className="spec-main">
+          <span className="spec-name">{pay === now ? 'Vandaag' : fmtDay(pay)}</span>
+          <span className="spec-sub">
+            Week {p.week} · {p.end >= now ? 'loopt nog' : `${fmtDay(p.start)} – ${fmtDay(p.end)}`}
+            {early.has(p.end) && pay >= now && ' · eerder betaald'}
+          </span>
+        </span>
+        <span className="spec-amount">{money(total)}</span>
+      </>
+    )
+    // Alleen afgesloten weken die nog niet volgens schema betaald zijn kun je (de)markeren.
+    const editable = p.end < now && pay >= now
+    return (
+      <li key={p.end} className={done ? 'tone-hour' : p.end >= now ? 'tone-elec' : 'tone-gas'}>
+        {editable ? (
+          <button className="spec-btn" onClick={() => setPick(w)}>
+            {inner}
+          </button>
+        ) : (
+          inner
+        )}
+      </li>
+    )
+  }
 
   return (
     <>
@@ -93,6 +148,27 @@ function Payouts() {
 
       <h3 className="section-title">Al uitbetaald</h3>
       <ul className="spec-list">{paid.map((w) => row(w, true))}</ul>
+
+      {pick && (
+        <Sheet title={`Week ${pick.p.week}`} onClose={() => setPick(null)}>
+          <div className="reason-list">
+            <button
+              className={`reason ${early.has(pick.p.end) ? 'tone-gas' : 'tone-hour'}`}
+              onClick={() => (void toggleEarly(pick.p.end), setPick(null))}
+            >
+              <span className="icon-sq">
+                <Icon name={early.has(pick.p.end) ? 'clock' : 'check'} size={20} />
+              </span>
+              <span className="list-main">
+                <b>{early.has(pick.p.end) ? 'Toch nog niet betaald' : 'Al betaald'}</b>
+                <span className="muted">
+                  {money(pick.total)} · gepland op {fmtDay(pick.pay)}
+                </span>
+              </span>
+            </button>
+          </div>
+        </Sheet>
+      )}
     </>
   )
 }
